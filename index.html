@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shreya's Universe Odyssey</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #020208;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Cinematic HUD */
+        #hud {
+            position: absolute;
+            top: 25px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: #fff;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 3px;
+            pointer-events: none;
+            text-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
+        }
+
+        .score-val {
+            color: #00ffff;
+        }
+
+        /* Mobile Controls Overlay */
+        .control-zone {
+            position: absolute;
+            bottom: 0;
+            width: 50%;
+            height: 85%;
+            z-index: 10;
+        }
+        #left-ctrl { left: 0; }
+        #right-ctrl { right: 0; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="hud">DISTANCE: <span id="score" class="score-val">0</span> LY</div>
+    
+    <div id="left-ctrl" class="control-zone"></div>
+    <div id="right-ctrl" class="control-zone"></div>
+
+    <script>
+        // 1. ENGINE & SCENE SETUP
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        scene.fog = new THREE.FogExp2(0x020208, 0.015);
+
+        // 2. LIGHTING
+        const ambientLight = new THREE.AmbientLight(0x222244, 1.5);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffaa66, 2.5);
+        sunLight.position.set(20, 15, 20);
+        scene.add(sunLight);
+
+        // 3. NO-IMAGE REALSISTIC BACKGROUND PLANET (Sci-Fi Wire-Grid Gas Giant)
+        const planetGroup = new THREE.Group();
+        const planetGeo = new THREE.SphereGeometry(14, 32, 32);
+        
+        // Beautiful glowing emerald-cyan tech material
+        const planetMat = new THREE.MeshStandardMaterial({
+            color: 0x0d9488,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.4
+        });
+        const backgroundPlanet = new THREE.Mesh(planetGeo, planetMat);
+        planetGroup.add(backgroundPlanet);
+
+        // Add a detailed glowing ring around the planet
+        const ringGeo = new THREE.RingGeometry(18, 24, 64);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0x06b6d4, side: THREE.DoubleSide, wireframe: true, transparent: true, opacity: 0.2 });
+        const planetRing = new THREE.Mesh(ringGeo, ringMat);
+        planetRing.rotation.x = Math.PI / 2.5;
+        planetGroup.add(planetRing);
+
+        planetGroup.position.set(25, 8, -100);
+        scene.add(planetGroup);
+
+        // 4. JAGGED 3D ASTEROIDS (Procedural-No Textures Required)
+        const asteroids = [];
+        const asteroidCount = 12;
+        const asteroidMaterial = new THREE.MeshStandardMaterial({
+            color: 0x475569,
+            roughness: 0.9,
+            metalness: 0.4,
+            flatShading: true // Gives a rocky, faceted, sharp realistic appearance
+        });
+
+        for(let i=0; i<asteroidCount; i++) {
+            const radius = Math.random() * 1.3 + 0.7;
+            const asteroidGeo = new THREE.DodecahedronGeometry(radius, 1);
+            
+            // Randomly sculpt vertices to make every single asteroid unique
+            const pos = asteroidGeo.attributes.position;
+            for (let j = 0; j < pos.count; j++) {
+                pos.setX(j, pos.getX(j) + (Math.random() - 0.5) * 0.3);
+                pos.setY(j, pos.getY(j) + (Math.random() - 0.5) * 0.3);
+                pos.setZ(j, pos.getZ(j) + (Math.random() - 0.5) * 0.3);
+            }
+
+            const rock = new THREE.Mesh(asteroidGeo, asteroidMaterial);
+            resetAsteroid(rock);
+            rock.position.z = -Math.random() * 100 - 10;
+            scene.add(rock);
+            asteroids.push(rock);
+        }
+
+        function resetAsteroid(rock) {
+            rock.position.x = (Math.random() - 0.5) * 16;
+            rock.position.y = (Math.random() - 0.5) * 8;
+            rock.position.z = -110;
+            rock.userData = {
+                rotX: Math.random() * 0.03,
+                rotY: Math.random() * 0.03,
+                speed: Math.random() * 0.35 + 0.35
+            };
+        }
+
+        // 5. HIGH-GRAPHICS STARSHIP 
+        const shipGroup = new THREE.Group();
+        const hullMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.2, metalness: 0.8 });
+        const wingMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.7 });
+        const engineGlowMat = new THREE.MeshBasicMaterial({ color: 0xff3366 });
+
+        // Cockpit Core Body
+        const core = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2.0, 8), hullMat);
+        core.rotation.x = Math.PI / 2;
+        shipGroup.add(core);
+
+        // Left Wing
+        const wingGeo = new THREE.ConeGeometry(0.6, 1.6, 3);
+        const leftWing = new THREE.Mesh(wingGeo, wingMat);
+        leftWing.position.set(-0.8, -0.1, 0.2);
+        leftWing.rotation.z = Math.PI / 3;
+        shipGroup.add(leftWing);
+
+        // Right Wing
+        const rightWing = leftWing.clone();
+        rightWing.position.x = 0.8;
+        rightWing.rotation.z = -Math.PI / 3;
+        shipGroup.add(rightWing);
+
+        // Engine Thruster
+        const engineGeo = new THREE.ConeGeometry(0.15, 0.5, 8);
+        const thruster = new THREE.Mesh(engineGeo, engineGlowMat);
+        thruster.position.set(0, -0.1, 1.1);
+        thruster.rotation.x = -Math.PI / 2;
+        shipGroup.add(thruster);
+
+        shipGroup.position.set(0, -1.5, -6);
+        scene.add(shipGroup);
+
+        // 6. DEEP SPACE STARFIELD
+        const starsGeo = new THREE.BufferGeometry();
+        const starsCount = 800;
+        const starPositions = new Float32Array(starsCount * 3);
+        for(let i=0; i<starsCount*3; i+=3) {
+            starPositions[i] = (Math.random() - 0.5) * 100;
+            starPositions[i+1] = (Math.random() - 0.5) * 100;
+            starPositions[i+2] = -Math.random() * 150;
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15 });
+        const starField = new THREE.Points(starsGeo, starsMat);
+        scene.add(starField);
+
+        camera.position.set(0, 0, 0);
+
+        // 7. INPUT ENGINE (Touch & Keyboard Mobile Adaptive)
+        let targetX = 0;
+        let score = 0;
+        let isGameOver = false;
+
+        const handleMove = (posX) => {
+            if (posX < window.innerWidth / 2) {
+                targetX = -4.0; // Left input
+            } else {
+                targetX = 4.0;  // Right input
+            }
+        };
+
+        window.addEventListener('touchstart', (e) => handleMove(e.touches[0].clientX));
+        window.addEventListener('touchmove', (e) => handleMove(e.touches[0].clientX));
+        window.addEventListener('touchend', () => { targetX = 0; });
+
+        // PC Support keys
+        window.addEventListener('keydown', (e) => {
+            if(e.key === 'ArrowLeft' || e.key === 'a') targetX = -4.0;
+            if(e.key === 'ArrowRight' || e.key === 'd') targetX = 4.0;
+        });
+        window.addEventListener('keyup', () => targetX = 0);
+
+        // 8. GAME LOOP ANIMATION
+        function animate() {
+            if(isGameOver) return;
+            requestAnimationFrame(animate);
+
+            // Ship interpolation logic
+            shipGroup.position.x += (targetX - shipGroup.position.x) * 0.08;
+            shipGroup.rotation.z = -(shipGroup.position.x) * 0.12; 
+            shipGroup.rotation.y = (targetX - shipGroup.position.x) * 0.04;
+
+            // Spin background planet slow
+            planetGroup.rotation.y += 0.002;
+
+            // Physics loop for incoming obstacles
+            asteroids.forEach(rock => {
+                rock.position.z += rock.userData.speed;
+                rock.rotation.x += rock.userData.rotX;
+                rock.rotation.y += rock.userData.rotY;
+
+                // Box boundaries collision check
+                const distance = shipGroup.position.distanceTo(rock.position);
+                if(distance < 1.3) {
+                    isGameOver = true;
+                    alert("⚠️ MISSION LOG: Asteroid impact! Game Over, Captain Shreya.\nScore reached: " + Math.floor(score));
+                    window.location.reload();
+                }
+
+                // Recycle if behind camera
+                if(rock.position.z > 1) {
+                    resetAsteroid(rock);
+                }
+            });
+
+            score += 0.2;
+            document.getElementById('score').innerText = Math.floor(score);
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
